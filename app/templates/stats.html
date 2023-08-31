@@ -1,0 +1,172 @@
+<!-- templates/stats.html -->
+
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+
+        .card-title {
+            font-size: 16px;
+        }
+
+        .form-control {
+            font-size: 12px;
+        }
+
+        .btn {
+            font-size: 12px;
+        }
+
+        .tab.active {
+            background-color: #5071BF4D !important;
+        }
+
+
+        .tab:hover {
+            background-color: #5071BF4D !important;
+        }
+
+        tr.active {
+            background-color: #5071BF4D !important;
+        }
+
+        p {
+            font-size: 12px;
+        }
+
+
+        tr:hover {
+            background-color: #5071BF4D !important;
+        }
+
+        table {
+            margin-top: 40px;
+        }
+
+        th div {
+            margin-top: -40px;
+            position: absolute;
+        }
+
+        /* design */
+        table {
+            border-collapse: collapse;
+        }
+
+        tr:nth-child(even) {
+            background: #EEE;
+        }
+
+        p.mytabs {
+            font-size: 16px;
+            margin: 1;
+        }
+
+        h6 {
+            margin: 0;
+        }
+
+    </style>
+<h1 class="title">Пользователи <button id="add-user-show" class="btn btn-primary" data-bs-target="#add_group"
+                                        data-bs-toggle="modal">Создать
+                                </button></h1>
+<div class="card">
+    <div class="card-body pt-3">
+        <div style="overflow-x:auto;">
+            <table class="table">
+                <thead>
+                <tr>
+                    <th scope="col">ID</th>
+                    <th scope="col">Имя</th>
+                    <th scope="col">Email</th>
+                    <th scope="col">Номер телефона</th>
+                    <th scope="col">Роль</th>
+                    <th scope="col">Статус</th>
+                    <th></th>
+                    <th></th>
+                    <th></th>
+                </tr>
+                </thead>
+                <tbody>
+                {% for i in users %}
+                <tr>
+                    <td>
+                        {{ i.id }}
+                    </td>
+                    <td>
+                        {{ i.name }}
+                    </td>
+                    <td>
+                        {{ i.email }}
+                    </td>
+                    <td>
+                        {{ i.phone }}
+                    </td>
+                    <td>
+                        {{ i.role }}
+                    </td>
+                    <td>
+                        {{ i.status }}
+                    </td>
+                    <td>
+                        <a href="{{url_for('main.edit_user', id=i.id)}}" class="btn btn-primary"><i class="bi bi-pencil"></i></a>
+                    </td>
+                    <td>
+                        {% if i.status == 'Активный' %}
+                        <a href="{{url_for('main.block_user', id=i.id)}}" class="btn btn-warning"><i class="bi bi-lock"></i></a>
+                        {% else %}
+                        <a href="{{url_for('main.unblock_user', id=i.id)}}" class="btn btn-success"><i class="bi bi-unlock"></i></a>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <a href="{{url_for('main.delete_user', id=i.id)}}" class="btn btn-danger"><i class="bi bi-trash"></i></a>
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+    <div class="modal fade" id="add_group" tabindex="-1"
+         aria-labelledby="confirmDeleteModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="confirmDeleteModalLabel">Добавить пользователя</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form method="POST" action="{{ url_for('main.add_user') }}">
+                        <div id="error-field" class="alert alert-danger d-none"></div>
+                        <div class="mb-3">
+                            <label for="name" class="form-label">Имя</label>
+                            <input type="text" class="form-control" id="name" name='name' placeholder="Введите имя пользователя"
+                                   required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="name" class="form-label">E-mail</label>
+                            <input type="text" class="form-control" id="email" name='email' placeholder="Введите email"
+                                   required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="name" class="form-label">Телефон</label>
+                            <input type="text" class="form-control" id="phone" name='phone' placeholder="Введите номер телефона"
+                                   required data-phone-pattern="">
+                        </div>
+                        <div class="mb-3">
+                            <label for="userList" class="form-label">Роль</label>
+                            <select id="userList" name="role" placeholder="Роль">
+                                    <option value="0">Пользователь</option>
+                                    <option value="1">Администратор</option>
+                            </select>
+                        </div>
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-primary">Добавить</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}

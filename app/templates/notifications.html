@@ -1,0 +1,494 @@
+<!-- templates/notifications.html -->
+
+{% extends "base.html" %}
+
+{% block head %}
+    <style>
+        .save-tag {
+            display: none;
+        }
+    </style>
+{% endblock %}
+
+{% block content %}
+    <div style="text-align: center">
+        <h1>Уведомления</h1>
+        <div class="card">
+            <div class="card-body pt-3">
+                <div style="overflow-x:auto;">
+                    <table class="table">
+                        <thead>
+                        <tr>
+                            <th scope="col">ID</th>
+                            {% if current_user.role == 2 %}
+                                <th scope="col">Сеть</th>
+                            {% endif %}
+                            <th scope="col">Маяк</th>
+                            <th scope="col">Группа</th>
+                            <th scope="col">Время начала</th>
+                            <th scope="col">Время конца</th>
+                            <th scope="col">Заголовок</th>
+                            <th scope="col">PDF файл</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        {% for notification in data %}
+                            <tr>
+                                <td>
+                                    {{ notification.id }}
+                                </td>
+                                {% if current_user.role == 2 %}
+                                    <td>{{  notification.network }}</td>
+                                {% endif %}
+                                <td>
+                                    {{ notification.beacon.name }}
+                                </td>
+                                <td>
+                                    {{ notification.group.name }}
+                                </td>
+                                <td>
+                                    {{ notification.start }}
+                                </td>
+                                <td>
+                                    {{ notification.finish }}
+                                </td>
+                                <td>
+                                    {{ notification.title }}
+                                </td>
+                                <td style="text-align: center;">
+                                    {% if notification.file %}
+                                        <a href="{{ url_for('static', filename = 'files/' + notification.file) }}"
+                                           download>
+                                            <i class="bi bi-file-earmark-pdf" style="font-size: 20px"></i>
+                                        </a>
+                                    {% else %}
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <button class="btn btn-sm btn-danger rounded-circle" data-bs-toggle="modal"
+                                            data-bs-target="#confirmDeleteModal{{ notification.id }}">
+                                        <i class="bi bi-trash"></i></button>
+                                    <button class="btn btn-sm btn-primary rounded-circle" data-bs-toggle="modal"
+                                            data-bs-target="#edit{{ notification.id }}">
+                                        <i class="bi bi-pencil-fill"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                        <tr id="add-user-button">
+                            <td colspan="10" style="text-align: center;">
+                                <button id="add-user-show" class="btn" data-bs-target="#add_note"
+                                        data-bs-toggle="modal">Создать
+                                </button>
+                            </td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div id="pagination" class="d-flex justify-content-end mt-3">
+                    <nav aria-label="Навигация">
+                        <ul class="pagination">
+                            {% if users.has_prev %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?search={{ search_query }}&page={{ users.prev_num }}"><i
+                                            class="bi bi-caret-left-fill"></i></a>
+                                </li>
+                            {% endif %}
+                            <li class="page-item">
+                                <a class="page-link"
+                                   href="?search={{ search_query }}&page={{ users.page }}">{{ users.page }}</a>
+                            </li>
+                            {% if users.has_next %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?search={{ search_query }}&page={{ users.next_num }}"> <i
+                                            class="bi bi-caret-right-fill"></i></a>
+                                </li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Modal -->
+    <div class="modal fade" id="add_note" tabindex="-1" role="dialog"
+         aria-labelledby="create-notification-modal-label" aria-hidden="true">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="create-notification-modal-label">Создать новое уведомление</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="create-notification-form" method="POST" action="{{ url_for('main.add_notification') }}"
+                          enctype=multipart/form-data>
+                        <div class="form-group">
+                            <label for="beacon-select">Маяк</label>
+                            <select class="form-select" id="beacon-select" placeholder="Маяк" name="beacon">
+                                <option value=0>Номера гостей</option>
+                                {% for i in all_beacons %}
+                                    <option value="{{ i.id }}">{{ i.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="group-select">Группа</label>
+                            <select class="form-select" id="group-select" placeholder="Группа" name="group">
+                                {% for i in all_user_groups %}
+                                    <option value="{{ i.id }}">{{ i.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="start-time-input">Время начала</label>
+                            <input type="datetime-local" class="form-control" id="start-time-input" name="start">
+                        </div>
+                        <div class="form-group">
+                            <label for="end-time-input">Время конца</label>
+                            <input type="datetime-local" class="form-control" id="end-time-input" name="finish">
+                        </div>
+                        <div class="form-group">
+                            <label for="end-time-input">Заголовок</label>
+                            <input type="text" class="form-control" id="end-time-input" name="title" maxlength="100">
+                        </div>
+                        <div class="form-group">
+                            <label for="text-input">Текст уведомления</label>
+                            <textarea type="text" class="form-control" id="text-input" maxlength="10000" name="text"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label for="file-input">Прикрепить PDF файл</label>
+                            <input type="file" class="form-control" id="file-input" name="file">
+                        </div>
+
+                        <div class="d-grid">
+                            <button id="add-mayak" type="submit" class="btn btn-primary">Добавить</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    {% for i in data %}
+        <!-- Модальное окно подтверждения удаления -->
+        <div class="modal fade" id="confirmDeleteModal{{ i.id }}" tabindex="-1"
+             aria-labelledby="confirmDeleteModalLabel" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="confirmDeleteModalLabel">Подтвердите удаление</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p>Вы уверены, что хотите удалить уведомление? <b>Это действие нельзя будет
+                            отменить</b></p>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                        <button type="button" class="btn btn-danger" id="delete{{ i.id }}" data-uid="{{ i.id }}">
+                            Удалить
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal fade" id="edit{{ i.id }}" tabindex="-1"
+             aria-labelledby="confirmDeleteModalLabel" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="confirmDeleteModalLabel">Редактировать уведомление</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <form method="POST" action="{{ url_for('main.edit_notification', id=i.id) }}"
+                              enctype=multipart/form-data>
+                            <div class="form-group">
+                                <label for="beacon-select">Маяк</label>
+                                <select class="form-select" id="beacon-select" placeholder="Маяк" name="beacon">
+                                    <option value=0 {% if i.beacon == 0 %} selected {% endif %}>Номера гостей</option>
+                                    {% for j in all_beacons %}
+                                        <option value="{{ j.id }}" {% if i.beacon == j.id %}
+                                                selected {% endif %}>{{ j.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="group-select">Группа</label>
+                                <select class="form-select" id="group-select" placeholder="Группа" name="group">
+                                    {% for j in all_user_groups %}
+                                        <option value="{{ j.id }}" {% if i.user_group == j.id %}
+                                                selected {% endif %} >{{ j.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="start-time-input">Время начала</label>
+                                <input type="datetime-local" class="form-control" id="start-time-input" name="start"
+                                       value="{{ i.start }}">
+                            </div>
+                            <div class="form-group">
+                                <label for="end-time-input">Время конца</label>
+                                <input type="datetime-local" class="form-control" id="end-time-input" name="finish"
+                                       value="{{ i.finish }}">
+                            </div>
+                            <div class="form-group">
+                                <label for="end-time-input">Заголовок</label>
+                                <input type="text" class="form-control" id="end-time-input" name="title"
+                                       value="{{ i.title }}" maxlength="100">
+                            </div>
+                            <div class="form-group">
+                                <label for="text-input">Текст уведомления</label>
+                                <textarea type="text" class="form-control" id="text-input" maxlength="10000" name="text">{{ i.text }}</textarea>
+                            </div>
+                            <div class="form-group">
+                                <label for="file-input">Прикрепить PDF файл</label>
+                                <input type="file" class="form-control" id="file-input" name="file">
+                            </div>
+                            <div class="d-grid">
+                                <button id="add-mayak" type="submit" class="btn btn-primary">Сохранить</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <script>
+            $('#delete{{ i.id }}').click(function () {
+                console.log(123);
+                $.post('/webapi/delete_notification/{{ i.id }}', {}, function (data) {
+                    if (data.success) {
+                        console.log(data.success);
+                        location.reload();
+                    } else {
+                        console.log(data.error);
+                        $('#error').text(data.error)
+                    }
+                });
+            });
+        </script>
+
+    {% endfor %}
+{% endblock %}
+
+
+<!--
+
+    <style>
+        .save-tag {
+            display: none;
+        }
+
+        #add-user-form {
+            display: none;
+        }
+
+        /* Стили для календаря */
+        .calendar {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 5px;
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        .calendar-day {
+            border: 1px solid #ccc;
+            padding: 10px;
+        }
+
+        .calendar-header {
+            font-weight: bold;
+        }
+
+        .event {
+            margin-bottom: 5px;
+        }
+    </style>
+
+    <div style="text-align: center">
+        <h1>Сети</h1>
+        <div class="card">
+            <div class="card-body pt-3">
+                <div style="overflow-x:auto;">
+                    <form action="/groups" method="GET" class="mt-4 mb-4">
+                        <div class="input-group mb-3">
+                            <input type="text" name="search" class="form-control"
+                                   placeholder="Поиск по имени, email или телефону" value="{{ search_query }}">
+                            <button class="btn btn-outline-secondary" type="submit" id="search-button"><i
+                                    class="bi bi-search"></i></button>
+                        </div>
+                    </form>
+                    <div class="calendar">
+                        <div class="calendar-header">Пн</div>
+                        <div class="calendar-header">Вт</div>
+                        <div class="calendar-header">Ср</div>
+                        <div class="calendar-header">Чт</div>
+                        <div class="calendar-header">Пт</div>
+                        <div class="calendar-header">Сб</div>
+                        <div class="calendar-header">Вс</div>
+                        {% for i in data %}
+                            <div class="calendar-day">
+                                <h4>{{ i.start }}</h4>
+                                <div class="event">
+                                    <strong>Название:</strong> {{ i.title }}
+                                </div>
+                                <div class="event">
+                                    <strong>Текст:</strong> {{ i.text }}
+                                </div>
+                                <div class="event">
+                                    <strong>Файл:</strong> <a href="{{ i.file }}">{{ i.file }}</a>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                <div id="pagination" class="d-flex justify-content-end mt-3">
+                    <nav aria-label="Навигация">
+                        <ul class="pagination">
+                            {% if users.has_prev %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?search={{ search_query }}&page={{ users.prev_num }}"><i
+                                            class="bi bi-caret-left-fill"></i></a>
+                                </li>
+                            {% endif %}
+                            <li class="page-item">
+                                <a class="page-link"
+                                   href="?search={{ search_query }}&page={{ users.page }}">{{ users.page }}</a>
+                            </li>
+                            {% if users.has_next %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?search={{ search_query }}&page={{ users.next_num }}"> <i
+                                            class="bi bi-caret-right-fill"></i></a>
+                                </li>
+                            {% endif %}
+                        </ul>
+                    </nav>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+        $(document).ready(function () {
+            $('.edit-tag').click(function () {
+                var userId = $(this).data('user-id');
+                var attr = $(this).data('attr');
+                var tagSpan = $('#' + attr + '-' + userId);
+                var tagInput = $('<input>').attr({
+                    type: 'text',
+                    id: 'edit-' + attr + '-' + userId,
+                    value: tagSpan.text()
+                });
+                tagSpan.replaceWith(tagInput);
+                $(this).hide();
+                $('.save-tag.' + attr + '[data-user-id=' + userId + ']').show();
+            });
+
+            $('.save-tag').click(function () {
+                var userId = $(this).data('user-id');
+                var attr = $(this).data('attr');
+                var newTag = $('#edit-' + attr + '-' + userId).val();
+                $.post('/webapi/edit_group', {user_id: userId, new_value: newTag, arg_name: attr}, function (data) {
+                    if (data.success) {
+                        var tagInput = $('#edit-' + attr + '-' + userId);
+                        var tagSpan = $('<span>').attr({
+                            id: attr + '-' + userId,
+                            class: 'tag'
+                        }).text(newTag);
+                        tagInput.replaceWith(tagSpan);
+                        $('.save-tag.' + attr + '[data-user-id=' + userId + ']').hide();
+                        $('.edit-tag.' + attr + '[data-user-id=' + userId + ']').show();
+                    }
+                });
+            });
+
+            $('#add-user').click(function () {
+                var name = $('#name').val();
+                $.post('/webapi/add_group', {
+                    name: name
+                }, function (data) {
+                    if (data.success) {
+                        location.reload();
+                        $('#add-user-form').hide();
+                        $('#add-user-button').show();
+                    } else {
+                        console.log(data.error);
+                        //location.reload();
+                        var errorField = $('#error-field-2');
+                        errorField.text(data.error);
+                        errorField.removeClass('d-none');
+                        console.log(error);
+
+                        setTimeout(function () {
+                            errorField.addClass('d-none');
+                        }, 5000);
+                    }
+                });
+
+            });
+        });
+    </script>
+    {% for i in data %}
+        <div class="modal fade" id="confirmDeleteModal{{ i.id }}" tabindex="-1"
+             aria-labelledby="confirmDeleteModalLabel" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="confirmDeleteModalLabel">Подтвердите удаление</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p>Вы уверены, что хотите удалить пользователя {{ i.name }}? <b>Это действие нельзя будет
+                            отменить</b></p>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                        <button type="button" class="btn btn-danger" id="delete{{ i.id }}" data-uid="{{ i.id }}">
+                            Удалить
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <script>
+            $('#delete{{ i.id }}').click(function () {
+                console.log(123);
+                $.post('/webapi/delete_group/{{ i.id }}', {}, function (data) {
+                    if (data.success) {
+                        console.log(data.success);
+                        location.reload();
+                    } else {
+                        console.log(data.error);
+                        $('#error').text(data.error)
+                    }
+                });
+            });
+        </script>
+
+    {% endfor %}
+    <div class="modal fade" id="add_group" tabindex="-1"
+         aria-labelledby="confirmDeleteModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="confirmDeleteModalLabel">Добавить сеть</h5>
+
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="error-field-2" class="alert alert-danger d-none"></div>
+                    <div class="mb-3">
+                        <label for="name" class="form-label">Имя</label>
+                        <input type="text" class="form-control" id="name" placeholder="Введите имя" required>
+                    </div>
+                    <div class="d-grid">
+                        <button id="add-user" class="btn btn-primary">Добавить</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+ -->
