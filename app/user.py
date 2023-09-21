@@ -5,11 +5,14 @@ from flask import Blueprint, request, current_app, url_for
 from flask_login import current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from . import db
-from .models import User, Codes, ResPass, Banks, Revues, BanksOffices, Cards, Promotions, News, Deposits, Credits
+from .models import User, Codes, ResPass, Banks, Revues, BanksOffices, Cards, Promotions, News, Deposits, Credits, \
+    InvestNews, Brokers, Markets, Mortgage, BrokerTariffs
 from iqsms_rest import Gate
 import random, string
 import time
 from .config import *
+
+import pandas as pd
 from .helpers import send_email, send_notification
 
 
@@ -981,7 +984,7 @@ def banks():
            application/json:
              schema: ErrorSchema
      tags:
-       - mobile
+       - banks
     '''
     search_query = request.args.get('search', '')
     search_region = request.args.get('region', '')
@@ -998,6 +1001,7 @@ def banks():
     for i in data:
         rating = [i.rating for i in Revues.query.filter_by(product_id=i['id'], product='bank').all()]
         i.update({'rating': round(sum(rating)/len(rating) if len(rating) else 0, 5)})
+        i.update({'image': f"{url_for('static', filename=f'banks/'+i['image'])}" if i['image'] else ''})
         data_result.append(i)
     return current_app.response_class(
         response=json.dumps(
@@ -1010,6 +1014,20 @@ def banks():
         status=200,
         mimetype='application/json'
     )
+
+
+@auth_api.route('/helper')
+def helper():
+    df = pd.read_excel('app/banks.xlsx', sheet_name='banks')
+    for i in df.values:
+        new_bank = Banks(name=i[0], image='1.png', region='Бишкек', license=i[5], address=i[2], phones=i[1])
+        db.session.add(new_bank)
+        db.session.commit()
+        for j in range(i[3]):
+            new_bank_office = BanksOffices(bank_id=new_bank.id, name=f'ДО {i[0]}', region='Бишкек', address=i[2])
+            db.session.add(new_bank_office)
+            db.session.commit()
+    return 'ok'
 
 
 @auth_api.route('/api/banks-offices', methods=['GET'])
@@ -1078,7 +1096,7 @@ def banks_offices():
            application/json:
              schema: ErrorSchema
      tags:
-       - mobile
+       - banks
     '''
     search_bank = request.args.get('bank', '')
     search_region = request.args.get('region', '')
@@ -1169,7 +1187,7 @@ def bank():
            application/json:
              schema: ErrorSchema
      tags:
-       - mobile
+       - banks
     '''
     bank = request.args.get('bank')
     query = Banks.query.filter_by(id=bank)
@@ -1272,7 +1290,7 @@ def cards():
            application/json:
              schema: ErrorSchema
      tags:
-       - mobile
+       - cards
     '''
     search_type = request.args.get('type', '')
     search_bank = request.args.get('bank', '')
@@ -1382,7 +1400,7 @@ def card():
            application/json:
              schema: ErrorSchema
      tags:
-       - mobile
+       - cards
     '''
     card = request.args.get('card')
     query = Cards.query.filter_by(id=card)
@@ -1469,7 +1487,7 @@ def promotions():
            application/json:
              schema: ErrorSchema
      tags:
-       - mobile
+       - promotions
     '''
     search = request.args.get('search', '')
     query = Promotions.query.filter(Promotions.title.contains(search))
@@ -1542,7 +1560,7 @@ def promotion():
            application/json:
              schema: ErrorSchema
      tags:
-       - mobile
+       - promotions
     '''
     promo = request.args.get('promo')
     query = Promotions.query.filter_by(id=promo)
@@ -1626,7 +1644,7 @@ def news():
            application/json:
              schema: ErrorSchema
      tags:
-       - mobile
+       - news
     '''
     search = request.args.get('search', '')
     query = News.query.filter(News.title.contains(search))
@@ -1702,10 +1720,170 @@ def new():
            application/json:
              schema: ErrorSchema
      tags:
-       - mobile
+       - news
     '''
     new = request.args.get('new')
     query = News.query.filter_by(id=new)
+    data = query.all()
+    if not data:
+        return current_app.response_class(
+            response=json.dumps(
+                {
+                    'result': False,
+                }
+            ),
+            status=404,
+            mimetype='application/json'
+        )
+    data = db2dict(data)
+    return current_app.response_class(
+        response=json.dumps(
+            {
+                'card': data[0],
+                'result': True,
+            }
+        ),
+        status=200,
+        mimetype='application/json'
+    )
+
+
+@auth_api.route('/api/investing/news', methods=['GET'])
+def invest_news():
+    '''
+    ---
+   get:
+     summary: Инвестиционные новости
+     parameters:
+         - in: query
+           name: search
+           schema:
+             type: string
+             example:
+           description: search
+     responses:
+       '200':
+         description: Результат
+         content:
+           application/json:
+             schema:      # Request body contents
+               type: object
+               properties:
+                   cards:
+                     type: array
+                     items:
+                       type: object
+                       properties:
+                           subtitle:
+                             type: string
+                           id:
+                             type: integer
+                           image:
+                             type: string
+                           title:
+                             type: string
+                           text:
+                             type: string
+                   result:
+                     type: boolean
+                   len:
+                     type: integer
+       '400':
+         description: Не передан обязательный параметр
+         content:
+           application/json:
+             schema: ErrorSchema
+       '401':
+         description: Неверный токен
+         content:
+           application/json:
+             schema: ErrorSchema
+       '403':
+         description: Пользователь заблокирован
+         content:
+           application/json:
+             schema: ErrorSchema
+     tags:
+       - investing
+    '''
+    search = request.args.get('search', '')
+    query = InvestNews.query.filter(InvestNews.title.contains(search))
+    data = query.all()
+    data = db2dict(data)
+    return current_app.response_class(
+        response=json.dumps(
+            {
+                'cards': data,
+                'result': True,
+                'len': len(data)
+            }
+        ),
+        status=200,
+        mimetype='application/json'
+    )
+
+
+@auth_api.route('/api/investing/new', methods=['GET'])
+def invest_new():
+    '''
+    ---
+   get:
+     summary: Инвестиционная новость
+     parameters:
+         - in: query
+           name: new
+           schema:
+             type: integer
+             example: 1
+           description: new
+     responses:
+       '200':
+         description: Результат
+         content:
+           application/json:
+             schema:      # Request body contents
+               type: object
+               properties:
+                   card:
+                     type: object
+                     properties:
+                           subtitle:
+                             type: string
+
+                           id:
+                             type: integer
+
+                           image:
+                             type: string
+
+                           title:
+                             type: string
+
+                           text:
+                             type: string
+
+                   result:
+                     type: boolean
+       '400':
+         description: Не передан обязательный параметр
+         content:
+           application/json:
+             schema: ErrorSchema
+       '401':
+         description: Неверный токен
+         content:
+           application/json:
+             schema: ErrorSchema
+       '403':
+         description: Пользователь заблокирован
+         content:
+           application/json:
+             schema: ErrorSchema
+     tags:
+       - investing
+    '''
+    new = request.args.get('new')
+    query = (InvestNews.query.filter_by(id=new))
     data = query.all()
     if not data:
         return current_app.response_class(
@@ -1808,7 +1986,7 @@ def deposits():
            application/json:
              schema: ErrorSchema
      tags:
-       - mobile
+       - deposits
     '''
     search_type = request.args.get('amount', 0)
     search_bank = request.args.get('bank', '')
@@ -1912,6 +2090,7 @@ def deposit():
            application/json:
              schema: ErrorSchema
      tags:
+       - deposits
     '''
     deposit = request.args.get('deposit')
     query = Deposits.query.filter_by(id=deposit)
@@ -2028,7 +2207,7 @@ def credits():
            application/json:
              schema: ErrorSchema
      tags:
-       - mobile
+       - credits
     '''
     search_amount = request.args.get('amount', 0)
     search_bank = request.args.get('bank', '')
@@ -2138,7 +2317,7 @@ def credit():
            application/json:
              schema: ErrorSchema
      tags:
-       - mobile
+       - credits
     '''
     credit = request.args.get('credit')
     query = Credits.query.filter_by(id=credit)
@@ -2157,6 +2336,1101 @@ def credit():
     data_result = []
     for i in data:
         rating = [i.rating for i in Revues.query.filter_by(product_id=i['id'], product='card').all()]
+        i.update({'rating': round(sum(rating)/len(rating) if len(rating) else 0, 5)})
+        data_result.append(i)
+    return current_app.response_class(
+        response=json.dumps(
+            {
+                'card': data_result[0],
+                'result': True,
+            }
+        ),
+        status=200,
+        mimetype='application/json'
+    )
+
+
+@auth_api.route('/api/markets', methods=['GET'])
+def markets():
+    '''
+    ---
+   get:
+     summary: Рынки
+     parameters:
+         - in: query
+           name: search
+           schema:
+             type: string
+             example:
+           description: search
+     responses:
+       '200':
+         description: Результат
+         content:
+           application/json:
+             schema:      # Request body contents
+               type: object
+               properties:
+                   markets:
+                     type: array
+                     items:
+                       type: object
+                       properties:
+                           name:
+                             type: string
+                           description:
+                             type: string
+                           id:
+                             type: integer
+                   result:
+                     type: boolean
+                   len:
+                     type: integer
+       '400':
+         description: Не передан обязательный параметр
+         content:
+           application/json:
+             schema: ErrorSchema
+       '401':
+         description: Неверный токен
+         content:
+           application/json:
+             schema: ErrorSchema
+       '403':
+         description: Пользователь заблокирован
+         content:
+           application/json:
+             schema: ErrorSchema
+     tags:
+       - investing
+    '''
+    search = request.args.get('search', '')
+    query = Markets.query.filter(Markets.name.contains(search))
+    data = query.all()
+    data = db2dict(data)
+    return current_app.response_class(
+        response=json.dumps(
+            {
+                'markets': data,
+                'result': True,
+                'len': len(data)
+            }
+        ),
+        status=200,
+        mimetype='application/json'
+    )
+
+
+@auth_api.route('/api/brokers', methods=['GET'])
+def brokers():
+    '''
+    ---
+   get:
+     summary: Брокеры
+     parameters:
+         - in: query
+           name: search
+           schema:
+             type: string
+             example:
+           description: search
+         - in: query
+           name: market
+           schema:
+             type: string
+             example:
+           description: market
+     responses:
+       '200':
+         description: Результат
+         content:
+           application/json:
+             schema:      # Request body contents
+               type: object
+               properties:
+                   brokers:
+                     type: array
+                     items:
+                       type: object
+                       properties:
+                           bank_id:
+                             type: integer
+                           id:
+                             type: integer
+                           market:
+                             type: integer
+                           link:
+                             type: string
+                           image:
+                             type: string
+                           license:
+                             type: string
+                           name:
+                             type: string
+                           description:
+                             type: string
+                           rating:
+                             type: integer
+                   result:
+                     type: boolean
+                   len:
+                     type: integer
+       '400':
+         description: Не передан обязательный параметр
+         content:
+           application/json:
+             schema: ErrorSchema
+       '401':
+         description: Неверный токен
+         content:
+           application/json:
+             schema: ErrorSchema
+       '403':
+         description: Пользователь заблокирован
+         content:
+           application/json:
+             schema: ErrorSchema
+     tags:
+       - investing
+    '''
+    search_query = request.args.get('search', '')
+    search_market = request.args.get('market', '')
+    query = Brokers.query.filter()
+    if search_query:
+        query = query.filter(Brokers.name.contains(search_query))
+    if search_market:
+        query = query.filter((Brokers.market == search_market))
+    data = query.all()
+    data = db2dict(data)
+    data_result = []
+    for i in data:
+        rating = [i.rating for i in Revues.query.filter_by(product_id=i['id'], product='broker').all()]
+        i.update({'rating': round(sum(rating)/len(rating) if len(rating) else 0, 5)})
+        data_result.append(i)
+    return current_app.response_class(
+        response=json.dumps(
+            {
+                'brokers': data_result,
+                'result': True,
+                'len': len(data_result)
+            }
+        ),
+        status=200,
+        mimetype='application/json'
+    )
+
+
+@auth_api.route('/api/broker', methods=['GET'])
+def broker():
+    '''
+    ---
+   get:
+     summary: Брокер
+     parameters:
+         - in: query
+           name: broker
+           schema:
+             type: integer
+             example: 1
+           description: broker
+     responses:
+       '200':
+         description: Результат
+         content:
+           application/json:
+             schema:      # Request body contents
+               type: object
+               properties:
+                   broker:
+                     type: object
+                     properties:
+                           id:
+                             type: integer
+
+                           market:
+                             type: integer
+
+                           bank_id:
+                             type: integer
+
+                           link:
+                             type: string
+
+                           image:
+                             type: string
+
+                           license:
+                             type: string
+
+                           name:
+                             type: string
+
+                           description:
+                             type: string
+
+                           rating:
+                             type: integer
+
+                   tariffs:
+                     type: array
+                     items:
+                       type: object
+                       properties:
+                           broker_id:
+                             type: integer
+                           name:
+                             type: string
+                           payment:
+                             type: integer
+                           description:
+                             type: string
+                           commission:
+                             type: integer
+                           id:
+                             type: integer
+                           link:
+                             type: string
+                           rating:
+                             type: integer
+                   result:
+                     type: boolean
+       '400':
+         description: Не передан обязательный параметр
+         content:
+           application/json:
+             schema: ErrorSchema
+       '401':
+         description: Неверный токен
+         content:
+           application/json:
+             schema: ErrorSchema
+       '403':
+         description: Пользователь заблокирован
+         content:
+           application/json:
+             schema: ErrorSchema
+     tags:
+       - investing
+    '''
+    broker = request.args.get('broker')
+    query = Brokers.query.filter_by(id=broker)
+    data = query.all()
+    if not data:
+        return current_app.response_class(
+            response=json.dumps(
+                {
+                    'result': False,
+                }
+            ),
+            status=404,
+            mimetype='application/json'
+        )
+    data = db2dict(data)
+    data_result = []
+    for i in data:
+        rating = [i.rating for i in Revues.query.filter_by(product_id=i['id'], product='broker').all()]
+        i.update({'rating': round(sum(rating)/len(rating) if len(rating) else 0, 5)})
+        data_result.append(i)
+    query = BrokerTariffs.query.filter_by()
+    data = query.all()
+    data = db2dict(data)
+    data_tariffs = []
+    if data:
+        for i in data:
+            rating = [j.rating for j in Revues.query.filter_by(product_id=i['id'], product='tariff').all()]
+            i.update({'rating': round(sum(rating) / len(rating) if len(rating) else 0, 5)})
+            data_tariffs.append(i)
+    return current_app.response_class(
+        response=json.dumps(
+            {
+                'broker': data_result[0],
+                'tariffs': data_tariffs,
+                'result': True,
+            }
+        ),
+        status=200,
+        mimetype='application/json'
+    )
+
+
+@auth_api.route('/api/tariff', methods=['GET'])
+def tariff():
+    '''
+    ---
+   get:
+     summary: Тарифы брокера
+     parameters:
+         - in: query
+           name: tariff
+           schema:
+             type: integer
+             example: 1
+           description: tariff
+     responses:
+       '200':
+         description: Результат
+         content:
+           application/json:
+             schema:      # Request body contents
+               type: object
+               properties:
+                   tariff:
+                     type: object
+                     properties:
+                           broker_id:
+                             type: integer
+
+                           name:
+                             type: string
+
+                           payment:
+                             type: integer
+
+                           description:
+                             type: string
+
+                           commission:
+                             type: integer
+
+                           id:
+                             type: integer
+
+                           link:
+                             type: string
+
+                           rating:
+                             type: integer
+
+                   result:
+                     type: boolean
+       '400':
+         description: Не передан обязательный параметр
+         content:
+           application/json:
+             schema: ErrorSchema
+       '401':
+         description: Неверный токен
+         content:
+           application/json:
+             schema: ErrorSchema
+       '403':
+         description: Пользователь заблокирован
+         content:
+           application/json:
+             schema: ErrorSchema
+     tags:
+       - investing
+    '''
+    tariff = request.args.get('tariff')
+    query = BrokerTariffs.query.filter_by(id=tariff)
+    data = query.all()
+    data = db2dict(data)
+    data_tariffs = []
+    if not data:
+        return current_app.response_class(
+            response=json.dumps(
+                {
+                    'result': False,
+                }
+            ),
+            status=404,
+            mimetype='application/json'
+        )
+    for i in data:
+        rating = [j.rating for j in Revues.query.filter_by(product_id=i['id'], product='tariff').all()]
+        i.update({'rating': round(sum(rating) / len(rating) if len(rating) else 0, 5)})
+        data_tariffs.append(i)
+    return current_app.response_class(
+        response=json.dumps(
+            {
+                'tariff': data_tariffs[0],
+                'result': True,
+            }
+        ),
+        status=200,
+        mimetype='application/json'
+    )
+
+
+@auth_api.route('/api/mortgages', methods=['GET'])
+def mortgages():
+    '''
+    ---
+   get:
+     summary: Ипотека
+     parameters:
+         - in: query
+           name: amount
+           schema:
+             type: integer
+             example: 4000000
+           description: amount
+         - in: query
+           name: first-payment
+           schema:
+             type: integer
+             example: 2000000
+           description: first-payment
+         - in: query
+           name: bank
+           schema:
+             type: string
+             example:
+           description: bank
+         - in: query
+           name: type
+           schema:
+             type: string
+             example:
+           description: type
+         - in: query
+           name: timeframe
+           schema:
+             type: integer
+             example: 15
+           description: timeframe
+     responses:
+       '200':
+         description: Результат
+         content:
+           application/json:
+             schema:      # Request body contents
+               type: object
+               properties:
+                   cards:
+                     type: array
+                     items:
+                       type: object
+                       properties:
+                           id:
+                             type: integer
+                           type:
+                             type: string
+                           max_amount:
+                             type: integer
+                           timeframe_min:
+                             type: integer
+                           name:
+                             type: string
+                           min_amount:
+                             type: integer
+                           bank_id:
+                             type: integer
+                           rate:
+                             type: number
+                           timeframe_max:
+                             type: integer
+                           description:
+                             type: string
+                           rating:
+                             type: integer
+                           monthly_payment:
+                             type: integer
+                   result:
+                     type: boolean
+                   len:
+                     type: integer
+       '400':
+         description: Не передан обязательный параметр
+         content:
+           application/json:
+             schema: ErrorSchema
+       '401':
+         description: Неверный токен
+         content:
+           application/json:
+             schema: ErrorSchema
+       '403':
+         description: Пользователь заблокирован
+         content:
+           application/json:
+             schema: ErrorSchema
+     tags:
+       - mortgage
+    '''
+    search_amount = float(request.args.get('amount', 0))
+    search_first = float(request.args.get('first-payment', 0))
+    search_bank = request.args.get('bank', '')
+    search_type = request.args.get('type', '')
+    search_timeframe = float(request.args.get('timeframe', 0))
+    query = Mortgage.query.filter()
+    search_amount = search_amount-search_first
+    if search_amount:
+        query = query.filter((Mortgage.min_amount < search_amount) & (Mortgage.max_amount > search_amount))
+    if search_timeframe:
+        query = query.filter((Mortgage.timeframe_min < search_timeframe) & (Mortgage.timeframe_max > search_timeframe))
+    if search_bank:
+        query = query.filter(Mortgage.bank_id == search_bank)
+    if search_type:
+        query = query.filter(Mortgage.type == search_type)
+    data = query.all()
+    print(data, search_amount, search_first, search_bank, search_type, search_timeframe)
+    data = db2dict(data)
+    data_result = []
+    for i in data:
+        rating = [i.rating for i in Revues.query.filter_by(product_id=i['id'], product='mortgage').all()]
+        i.update({'rating': round(sum(rating)/len(rating) if len(rating) else 0, 5)})
+        i.update({'monthly_payment': round(search_amount*((float(i['rate'])/1200)/(1-(1+(float(i['rate'])/1200))**(-search_timeframe*12-1))))})
+        data_result.append(i)
+    return current_app.response_class(
+        response=json.dumps(
+            {
+                'cards': data_result,
+                'result': True,
+                'len': len(data_result)
+            }
+        ),
+        status=200,
+        mimetype='application/json'
+    )
+
+
+@auth_api.route('/api/mortgage', methods=['GET'])
+def mortgage():
+    '''
+    ---
+   get:
+     summary: Ипотека
+     parameters:
+         - in: query
+           name: mortgage
+           schema:
+             type: integer
+             example: 1
+           description: mortgage
+         - in: query
+           name: amount
+           schema:
+             type: integer
+             example: 4000000
+           description: amount
+         - in: query
+           name: first-payment
+           schema:
+             type: integer
+             example: 2000000
+           description: first-payment
+         - in: query
+           name: timeframe
+           schema:
+             type: integer
+             example: 15
+           description: timeframe
+     responses:
+       '200':
+         description: Результат
+         content:
+           application/json:
+             schema:      # Request body contents
+               type: object
+               properties:
+                   card:
+                     type: object
+                     properties:
+                           max_amount:
+                             type: integer
+
+                           id:
+                             type: integer
+
+                           type:
+                             type: string
+
+                           timeframe_min:
+                             type: integer
+
+                           name:
+                             type: string
+
+                           bank_id:
+                             type: integer
+
+                           min_amount:
+                             type: integer
+
+                           rate:
+                             type: number
+
+                           timeframe_max:
+                             type: integer
+
+                           description:
+                             type: string
+
+                           rating:
+                             type: integer
+
+                           monthly_payment:
+                             type: integer
+
+                   result:
+                     type: boolean
+       '400':
+         description: Не передан обязательный параметр
+         content:
+           application/json:
+             schema: ErrorSchema
+       '401':
+         description: Неверный токен
+         content:
+           application/json:
+             schema: ErrorSchema
+       '403':
+         description: Пользователь заблокирован
+         content:
+           application/json:
+             schema: ErrorSchema
+     tags:
+       - mortgage
+    '''
+    mortgage = request.args.get('mortgage')
+    amount = float(request.args.get('amount', 0))
+    first = float(request.args.get('first-payment', 0))
+    timeframe = float(request.args.get('timeframe', 0))
+    amount = amount - first
+    query = Mortgage.query.filter_by(id=mortgage)
+    data = query.all()
+    if not data:
+        return current_app.response_class(
+            response=json.dumps(
+                {
+                    'result': False,
+                }
+            ),
+            status=404,
+            mimetype='application/json'
+        )
+    data = db2dict(data)
+    data_result = []
+    for i in data:
+        rating = [i.rating for i in Revues.query.filter_by(product_id=i['id'], product='mortgage').all()]
+        i.update({'rating': round(sum(rating)/len(rating) if len(rating) else 0, 5)})
+        i.update({'monthly_payment': round(amount*((float(i['rate'])/1200)/(1-(1+(float(i['rate'])/1200))**(-timeframe*12-1))))})
+        data_result.append(i)
+    return current_app.response_class(
+        response=json.dumps(
+            {
+                'card': data_result[0],
+                'result': True,
+            }
+        ),
+        status=200,
+        mimetype='application/json'
+    )
+
+
+@auth_api.route('/api/business-cards', methods=['GET'])
+def business_cards():
+    '''
+    ---
+   get:
+     summary: Бизнес карты
+     parameters:
+         - in: query
+           name: bank
+           schema:
+             type: integer
+             example: 1
+           description: bank
+     responses:
+       '200':
+         description: Результат
+         content:
+           application/json:
+             schema:      # Request body contents
+               type: object
+               properties:
+                   cards:
+                     type: array
+                     items:
+                       type: object
+                       properties:
+                           license:
+                             type: integer
+                           id:
+                             type: integer
+                           form:
+                             type: string
+                           address:
+                             type: string
+                           region:
+                             type: integer
+                           since:
+                             type: integer
+                           image:
+                             type: string
+                           name:
+                             type: string
+                           rating:
+                             type: integer
+                   result:
+                     type: boolean
+                   len:
+                     type: integer
+       '400':
+         description: Не передан обязательный параметр
+         content:
+           application/json:
+             schema: ErrorSchema
+       '401':
+         description: Неверный токен
+         content:
+           application/json:
+             schema: ErrorSchema
+       '403':
+         description: Пользователь заблокирован
+         content:
+           application/json:
+             schema: ErrorSchema
+     tags:
+       - business
+    '''
+    search_bank = request.args.get('bank', '')
+    query = Banks.query.filter((Cards.type == 'business') & (Cards.bank_id == search_bank) if search_bank else Cards.type.contains(search_bank))
+    data = query.all()
+    data = db2dict(data)
+    data_result = []
+    for i in data:
+        rating = [i.rating for i in Revues.query.filter_by(product_id=i['id'], product='card').all()]
+        i.update({'rating': round(sum(rating)/len(rating) if len(rating) else 0, 5)})
+        data_result.append(i)
+    return current_app.response_class(
+        response=json.dumps(
+            {
+                'cards': data_result,
+                'result': True,
+                'len': len(data_result)
+            }
+        ),
+        status=200,
+        mimetype='application/json'
+    )
+
+
+@auth_api.route('/api/business-card', methods=['GET'])
+def business_card():
+    '''
+    ---
+   get:
+     summary: Бизнес карта
+     parameters:
+         - in: query
+           name: card
+           schema:
+             type: integer
+             example: 1
+           description: card
+     responses:
+       '200':
+         description: Результат
+         content:
+           application/json:
+             schema:      # Request body contents
+               type: object
+               properties:
+                   card:
+                     type: object
+                     properties:
+                           price:
+                             type: number
+
+                           id:
+                             type: integer
+
+                           cashback:
+                             type: number
+
+                           min_amount:
+                             type: string
+
+                           rate:
+                             type: number
+
+                           timeframe_max:
+                             type: string
+
+                           description:
+                             type: string
+
+                           max_points:
+                             type: integer
+
+                           bank_id:
+                             type: integer
+
+                           type:
+                             type: string
+
+                           max_amount:
+                             type: string
+
+                           timeframe_min:
+                             type: string
+
+                           name:
+                             type: string
+
+                           rating:
+                             type: integer
+
+                   result:
+                     type: boolean
+       '400':
+         description: Не передан обязательный параметр
+         content:
+           application/json:
+             schema: ErrorSchema
+       '401':
+         description: Неверный токен
+         content:
+           application/json:
+             schema: ErrorSchema
+       '403':
+         description: Пользователь заблокирован
+         content:
+           application/json:
+             schema: ErrorSchema
+     tags:
+       - business
+    '''
+    card = request.args.get('card')
+    query = Cards.query.filter_by(id=card)
+    data = query.all()
+    if not data:
+        return current_app.response_class(
+            response=json.dumps(
+                {
+                    'result': False,
+                }
+            ),
+            status=404,
+            mimetype='application/json'
+        )
+    data = db2dict(data)
+    data_result = []
+    for i in data:
+        rating = [i.rating for i in Revues.query.filter_by(product_id=i['id'], product='card').all()]
+        i.update({'rating': round(sum(rating)/len(rating) if len(rating) else 0, 5)})
+        data_result.append(i)
+    return current_app.response_class(
+        response=json.dumps(
+            {
+                'card': data_result[0],
+                'result': True,
+            }
+        ),
+        status=200,
+        mimetype='application/json'
+    )
+
+
+@auth_api.route('/api/business-credits', methods=['GET'])
+def business_credits():
+    '''
+    ---
+   get:
+     summary: Кредиты для бизнеса
+     parameters:
+         - in: query
+           name: amount
+           schema:
+             type: integer
+             example: 100000
+           description: amount
+         - in: query
+           name: bank
+           schema:
+             type: string
+             example:
+           description: bank
+         - in: query
+           name: timeframe
+           schema:
+             type: integer
+             example: 51
+           description: timeframe
+     responses:
+       '200':
+         description: Результат
+         content:
+           application/json:
+             schema:      # Request body contents
+               type: object
+               properties:
+                   cards:
+                     type: array
+                     items:
+                       type: object
+                       properties:
+                           max_amount:
+                             type: integer
+                           id:
+                             type: integer
+                           timeframe_min:
+                             type: integer
+                           name:
+                             type: string
+                           min_amount:
+                             type: integer
+                           rate:
+                             type: number
+                           bank_id:
+                             type: integer
+                           timeframe_max:
+                             type: integer
+                           description:
+                             type: string
+                           rating:
+                             type: integer
+                   result:
+                     type: boolean
+                   len:
+                     type: integer
+       '400':
+         description: Не передан обязательный параметр
+         content:
+           application/json:
+             schema: ErrorSchema
+       '401':
+         description: Неверный токен
+         content:
+           application/json:
+             schema: ErrorSchema
+       '403':
+         description: Пользователь заблокирован
+         content:
+           application/json:
+             schema: ErrorSchema
+     tags:
+       - business
+    '''
+    search_amount = request.args.get('amount', 0)
+    search_bank = request.args.get('bank', '')
+    search_type = 'business'
+    search_timeframe = request.args.get('timeframe', 0)
+    query = Credits.query.filter()
+    if search_amount:
+        query = query.filter((Credits.min_amount < search_amount) & (Credits.max_amount > search_amount))
+    if search_timeframe:
+        query = query.filter((Credits.timeframe_min < search_timeframe) & (Credits.timeframe_max > search_timeframe))
+    if search_bank:
+        query = query.filter(Credits.bank_id == search_bank)
+    if search_type:
+        query = query.filter(Credits.type == search_type)
+    data = query.all()
+    data = db2dict(data)
+    data_result = []
+    for i in data:
+        rating = [i.rating for i in Revues.query.filter_by(product_id=i['id'], product='credit').all()]
+        i.update({'rating': round(sum(rating)/len(rating) if len(rating) else 0, 5)})
+        data_result.append(i)
+    return current_app.response_class(
+        response=json.dumps(
+            {
+                'cards': data_result,
+                'result': True,
+                'len': len(data_result)
+            }
+        ),
+        status=200,
+        mimetype='application/json'
+    )
+
+
+@auth_api.route('/api/business-credit', methods=['GET'])
+def business_credit():
+    '''
+    ---
+   get:
+     summary: Кредит
+     parameters:
+         - in: query
+           name: credit
+           schema:
+             type: integer
+             example: 2
+           description: credit
+     responses:
+       '200':
+         description: Результат
+         content:
+           application/json:
+             schema:      # Request body contents
+               type: object
+               properties:
+                   card:
+                     type: object
+                     properties:
+                           id:
+                             type: integer
+
+                           bank_id:
+                             type: integer
+
+                           min_amount:
+                             type: integer
+
+                           rate:
+                             type: number
+
+                           timeframe_max:
+                             type: integer
+
+                           description:
+                             type: string
+
+                           type:
+                             type: string
+
+                           max_amount:
+                             type: integer
+
+                           timeframe_min:
+                             type: integer
+
+                           name:
+                             type: string
+
+                           rating:
+                             type: integer
+
+                   result:
+                     type: boolean
+       '400':
+         description: Не передан обязательный параметр
+         content:
+           application/json:
+             schema: ErrorSchema
+       '401':
+         description: Неверный токен
+         content:
+           application/json:
+             schema: ErrorSchema
+       '403':
+         description: Пользователь заблокирован
+         content:
+           application/json:
+             schema: ErrorSchema
+     tags:
+       - business
+    '''
+    credit = request.args.get('credit')
+    query = Credits.query.filter_by(id=credit)
+    data = query.all()
+    if not data:
+        return current_app.response_class(
+            response=json.dumps(
+                {
+                    'result': False,
+                }
+            ),
+            status=404,
+            mimetype='application/json'
+        )
+    data = db2dict(data)
+    data_result = []
+    for i in data:
+        rating = [i.rating for i in Revues.query.filter_by(product_id=i['id'], product='credit').all()]
         i.update({'rating': round(sum(rating)/len(rating) if len(rating) else 0, 5)})
         data_result.append(i)
     return current_app.response_class(

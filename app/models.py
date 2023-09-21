@@ -83,6 +83,7 @@ class Banks(UserMixin, db.Model):
     form = db.Column(db.String(100))
     name = db.Column(db.String(100))
     address = db.Column(db.String(100))
+    phones = db.Column(db.String(10000))
 
 
 class BanksOffices(UserMixin, db.Model):
@@ -142,3 +143,64 @@ class News(UserMixin, db.Model):
     title = db.Column(db.String(100))
     subtitle = db.Column(db.String(100))
     text = db.Column(db.String(1000))
+
+
+class InvestNews(UserMixin, db.Model):
+    id = db.Column(db.Integer, primary_key=True)  # primary keys are required by SQLAlchemy
+    image = db.Column(db.String(100))
+    title = db.Column(db.String(100))
+    subtitle = db.Column(db.String(100))
+    text = db.Column(db.String(1000))
+
+
+class Mortgage(UserMixin, db.Model):
+    id = db.Column(db.Integer, primary_key=True)  # primary keys are required by SQLAlchemy
+    bank_id = db.Column(db.Integer)
+    type = db.Column(db.String(100))
+    min_amount = db.Column(db.Integer)
+    max_amount = db.Column(db.Integer)
+    rate = db.Column(db.REAL)
+    timeframe_min = db.Column(db.Integer)
+    timeframe_max = db.Column(db.Integer)
+    name = db.Column(db.String(100))
+    description = db.Column(db.String(100))
+
+    def monthly_payment(self, timeframe=10, amount=4000000, first_payment=2500000):
+        return (amount-first_payment)*(self.rate/(1-(1+self.rate)**(timeframe-1)))
+
+
+class Markets(UserMixin, db.Model):
+    id = db.Column(db.Integer, primary_key=True)  # primary keys are required by SQLAlchemy
+    name = db.Column(db.String(100))
+    description = db.Column(db.String(100))
+
+
+class Brokers(UserMixin, db.Model):
+    id = db.Column(db.Integer, primary_key=True)  # primary keys are required by SQLAlchemy
+    image = db.Column(db.String(100))
+    market = db.Column(db.Integer)
+    license = db.Column(db.String(100))
+    bank_id = db.Column(db.Integer)
+    name = db.Column(db.String(100))
+    link = db.Column(db.String(1000))
+    description = db.Column(db.String(100))
+
+
+class BrokerTariffs(UserMixin, db.Model):
+    id = db.Column(db.Integer, primary_key=True)  # primary keys are required by SQLAlchemy
+    broker_id = db.Column(db.Integer)
+    name = db.Column(db.String(100))
+    commission = db.Column(db.Integer)
+    payment = db.Column(db.Integer)
+    link = db.Column(db.String(1000))
+    description = db.Column(db.String(100))
+
+
+class BusinessTariffs(UserMixin, db.Model):
+    id = db.Column(db.Integer, primary_key=True)  # primary keys are required by SQLAlchemy
+    bank_id = db.Column(db.Integer)
+    name = db.Column(db.String(100))
+    description = db.Column(db.String(100))
+    commission = db.Column(db.Integer)
+    payment = db.Column(db.Integer)
+    link = db.Column(db.String(1000))

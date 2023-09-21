@@ -45,6 +45,15 @@ def create_tags(spec):
     """
     tags = [
         {'name': 'mobile', 'description': 'API для пользователей'},
+        {'name': 'promotions', 'description': 'API для спец предложений'},
+        {'name': 'news', 'description': 'API для новостей'},
+        {'name': 'banks', 'description': 'API для банков'},
+        {'name': 'cards', 'description': 'API для карт'},
+        {'name': 'credits', 'description': 'API для кредитов'},
+        {'name': 'deposits', 'description': 'API для депозитов'},
+        {'name': 'investing', 'description': 'API для инвестиций'},
+        {'name': 'mortgage', 'description': 'API для ипотека'},
+        {'name': 'business', 'description': 'API для бизнес'},
         {'name': 'admin', 'description': 'API админки'},
     ]
 

@@ -73,155 +73,10 @@ main = Blueprint('main', __name__)
 CWD = '/root/MeashStore/'
 
 
-@main.route('/api/auth-admin')
-def auth_admin():
-    '''
-    ---
-       get:
-         summary: Вход админа
-         parameters:
-             - in: query
-               name: email
-               schema:
-                 type: string
-                 example: example2@gmail.com
-               description: email
-             - in: query
-               name: password
-               schema:
-                 type: string
-                 example: 123
-               description: password
-             - in: query
-               name: remember
-               schema:
-                 type: boolean
-                 example: true
-               description: password
-         responses:
-           '200':
-             description: Результат
-             content:
-               application/json:
-                 schema:      # Request body contents
-                   type: object
-                   properties:
-                       result:
-                         type: boolean
-                       token:
-                         type: string
-                       role:
-                         type: integer
-                       msg:
-                         type: string
-           '400':
-             description: Не передан обязательный параметр
-             content:
-               application/json:
-                 schema: ErrorSchema
-           '401':
-             description: Неверный пароль или пользователь не существует
-             content:
-               application/json:
-                 schema: ErrorSchema
-           '403':
-             description: Пользователь заблокирован
-             content:
-               application/json:
-                 schema: ErrorSchema
-         tags:
-           - admin
-        '''
-    try:
-        email = request.args.get('email')
-        password = request.args.get('password')
-        remember = True if request.args.get('remember') else False
-        user = User.query.filter_by(email=email).first()
-        if user:
-            msg = ''
-            if user.confirmed == 0:
-                msg = 'Номер телефона не подтверждкен'
-            if user.role not in [1, 2]:
-                return current_app.response_class(
-                    response=json.dumps(
-                        {
-                            'error': "NOT ADMIN",
-                            'role': '',
-                            'token': ''
-                        }
-                    ),
-                    status=400,
-                    mimetype='application/json'
-                )
-            if user.status == 'blocked':
-                return current_app.response_class(
-                    response=json.dumps(
-                        {
-                            'error': "USER BLOCKED",
-                            'role': '',
-                            'token': ''
-                        }
-                    ),
-                    status=400,
-                    mimetype='application/json'
-                )
-            if check_password_hash(user.password, password):
-                login_user(user, remember=remember)
-                return current_app.response_class(
-                    response=json.dumps(
-                        {
-                            'result': True,
-                            'token': user.generate_auth_token(expiration=86400 if remember else 3600),
-                            'role': user.role,
-                            'network': {
-                                'id': user.group,
-                                'name': Groups.query.filter_by(id=user.group).first().name
-                            } if user.role != 2 else {},
-                            'msg': msg
-                        }
-                    ),
-                    status=200,
-                    mimetype='application/json'
-                )
-            else:
-                return current_app.response_class(
-                    response=json.dumps(
-                        {
-                            'result': 'INCORRECT PASSWORD',
-                            'token': '',
-                            'role': ''
-                        }
-                    ),
-                    status=400,
-                    mimetype='application/json'
-                )
-        else:
-            return current_app.response_class(
-                response=json.dumps(
-                    {
-                        'result': 'USER DOES NOT EXIST',
-                        'token': '',
-                        'role': ''
-                    }
-                ),
-                status=400,
-                mimetype='application/json'
-            )
-    except Exception as e:
-        return current_app.response_class(
-            response=json.dumps(
-                {'error': f'ERROR: {e}!'}
-            ),
-            status=400,
-            mimetype='application/json'
-        )
-
-
-@main.route('/', methods=['POST', 'GET'])
-@main.route('/users', methods=['POST', 'GET'])
+@main.route('/admin/', methods=['POST', 'GET'])
+@main.route('/admin/users', methods=['POST', 'GET'])
 @login_required
 def users():
-    print(url_for('main.edit_user', id=1))
     users = []
     user = current_user
     search_query = request.args.get('search', '')  # Получаем значение параметра 'search' из URL
@@ -248,14 +103,14 @@ def users():
     return render_template('stats.html', users=users)
 
 
-@main.route('/user/<id>', methods=['GET'])
+@main.route('/admin/user/<id>', methods=['GET'])
 @login_required
 def edit_user(id):
     user = User.query.filter_by(id=id).first()
     return render_template('user.html', user=user)
 
 
-@main.route('/edit-user/<id>', methods=['POST'])
+@main.route('/admin/edit-user/<id>', methods=['POST'])
 @login_required
 def edit_user_post(id):
     name = request.form['name']
@@ -277,7 +132,7 @@ def edit_user_post(id):
     return redirect(url_for('main.edit_user', id=id))
 
 
-@main.route('/add-user', methods=['POST'])
+@main.route('/admin/add-user', methods=['POST'])
 @login_required
 def add_user():
     name = request.form['name']
@@ -305,6 +160,11 @@ def add_user():
     db.session.commit()
     return redirect(url_for('main.users'))
 
+
+@main.route('/', defaults={'path': ''})
+@main.route('/<path:path>')
+def index(path):
+    return render_template('index.html')
 
 
 @main.route('/api/delete-user/<id>', methods=['GET'])

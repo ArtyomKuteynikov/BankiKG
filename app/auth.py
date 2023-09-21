@@ -18,7 +18,7 @@ def login():
     return render_template('auth/login.html')
 
 
-@auth.route('/login', methods=['POST'])
+@auth.route('/admin/login', methods=['POST'])
 def login_post():
     email = request.form.get('email')
     password = request.form.get('password')
@@ -35,12 +35,12 @@ def login_post():
     return redirect(url_for('main.users'))
 
 
-@auth.route('/restore-pass', methods=['GET'])
+@auth.route('/admin/restore-pass', methods=['GET'])
 def restore_pass():
     return render_template('auth/restore_pass.html')
 
 
-@auth.route('/restore-pass', methods=['POST'])
+@auth.route('/admin/restore-pass', methods=['POST'])
 def restore_pass_post():
     phone = request.form.get('phone').replace('+', '').replace(' ', '').replace('-', '').replace('(', '').replace(')',
                                                                                                                   '')
@@ -58,7 +58,7 @@ def restore_pass_post():
     return render_template('auth/check_code.html', phone=phone)
 
 
-@auth.route('/check-code', methods=['POST'])
+@auth.route('/admin/check-code', methods=['POST'])
 def check_code():
     phone = request.args.get('phone')
     code = Codes.query.filter_by(phone=phone).all()[-1].code
@@ -71,7 +71,7 @@ def check_code():
     return render_template('auth/new_password.html', phone=phone)
 
 
-@auth.route('/set-password', methods=['POST'])
+@auth.route('/admin/set-password', methods=['POST'])
 def set_password():
     phone = request.args.get('phone')
     password = request.form.get('password')
@@ -84,14 +84,14 @@ def set_password():
     return redirect(url_for('auth.login'))
 
 
-@auth.route('/logout')
+@auth.route('/admin/logout')
 @login_required
 def logout():
     logout_user()
     return redirect(url_for('auth.login'))
 
 
-@auth.route('/profile')
+@auth.route('/admin/profile')
 def profile():
     user = {
         'name': current_user.name,
@@ -103,7 +103,7 @@ def profile():
     return render_template('profile.html', user=user)
 
 
-@auth.route('/edit_profile', methods=['POST'])
+@auth.route('/admin/edit_profile', methods=['POST'])
 def edit_profile():
     name = request.args.get('name')
     email = request.args.get('email')
